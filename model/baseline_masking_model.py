@@ -1,7 +1,10 @@
 import re
 import tensorflow as tf
+import numpy as np
 from transformers import pipeline
 from transformers import BertTokenizer, TFBertModel
+from transformers import TFAutoModelForMaskedLM
+from transformers import AutoTokenizer
 
 SCORE = "score"
 TOKEN_STRING = "token_str"
@@ -22,7 +25,7 @@ DEFAULT_GENDER_IDENTIFIERS = [
 pretrained_bert = "bert-base-uncased"
 
 
-def setup():
+def init_tokenizer_model():
     """
     Instantiates model and tokenizer based on pretrained bert-base-uncased model.
     Returns:
@@ -32,6 +35,12 @@ def setup():
     tokenizer = BertTokenizer.from_pretrained(pretrained_bert)
     model = TFBertModel.from_pretrained(pretrained_bert)
     return tokenizer, model
+
+
+def init_LM_model(model_checkpoint="distilbert-base-uncased"):
+    model = TFAutoModelForMaskedLM.from_pretrained(model_checkpoint)
+    tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+    return model, tokenizer
 
 
 def predict_mask(model, tokenizer, masked_text):
@@ -66,8 +75,10 @@ def mask_gender(tokenizer, gender_identifiers=[], input_text=""):
     regex = re.compile("|".join(map(re.escape, gender_identifiers)))
     return regex.sub(tokenizer.mask_token, input_text)
 
-
-tokenizer, model = setup()
-masked_input = mask_gender(tokenizer, input_text="he can work as a lawyer")
-print(masked_input)
-print(predict_mask(model, tokenizer, masked_input))
+def main(): 
+    #tokenizer,model = init_LM_model()
+    tokenizer, model = init_tokenizer_model()
+    # TODO: make this take in many different input texts efficiently  
+    masked_input = mask_gender(tokenizer, input_text="he can work as a lawyer")
+    print(masked_input)
+    print(predict_mask(model, tokenizer, masked_input))
