@@ -7,6 +7,14 @@ from huggingface_hub import notebook_login
 from transformers import create_optimizer
 from transformers.keras_callbacks import PushToHubCallback
 import tensorflow as tf
+from datasets import load_dataset
+
+CHUNK_SIZE = 128
+
+def init_model(model_checkpoint="distilbert-base-uncased"):
+    model = TFAutoModelForMaskedLM.from_pretrained(model_checkpoint)
+    tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+    return model, tokenizer
 
 def load_test_imdb_dataset():
 	imdb_dataset = load_dataset("imdb")
@@ -24,10 +32,10 @@ def group_texts(examples):
     # Compute length of concatenated texts
     total_length = len(concatenated_examples[list(examples.keys())[0]])
     # We drop the last chunk if it's smaller than chunk_size
-    total_length = (total_length // chunk_size) * chunk_size
+    total_length = (total_length // CHUNK_SIZE) * CHUNK_SIZE
     # Split by chunks of max_len
     result = {
-        k: [t[i : i + chunk_size] for i in range(0, total_length, chunk_size)]
+        k: [t[i : i + CHUNK_SIZE] for i in range(0, total_length, CHUNK_SIZE)]
         for k, t in concatenated_examples.items()
     }
     # Create a new labels column
@@ -35,6 +43,7 @@ def group_texts(examples):
     return result
 
 def main():
+	model,tokenizer = init_model()
 	imdb_dataset = load_test_imdb_dataset()
 	# Use batched=True to activate fast multithreading!
 	tokenized_datasets = imdb_dataset.map(
