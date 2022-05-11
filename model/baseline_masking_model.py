@@ -76,7 +76,7 @@ class Bert():
         return regex.sub(tokenizer.mask_token, input_text)
 
 def main(): 
-    bert = Bert();
+    bert = Bert()
     # TODO: make this take in many different input texts efficiently  
     masked_input = bert.mask_gender(bert.tokenizer, input_text="he can work as a lawyer")
     print(masked_input)
