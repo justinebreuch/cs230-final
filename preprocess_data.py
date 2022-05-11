@@ -2,6 +2,9 @@ import numpy as np
 import pandas as pd
 import re
 
+woman_keywords = ['woman', 'women', 'female', 'she', 'her', 'hers']
+man_keywords = ['man', 'men', 'male', 'he', 'his', 'him']
+
 def split_df_list(df,target_column,separator):
     ''' df = dataframe to split,
     target_column = the column containing the values to split
@@ -38,7 +41,12 @@ def read_from_uris(uri1, uri2=None, uri3=None):
     return data_1
 
 def get_data(uri1, uri2=None, uri3=None):
-	data = read_from_uris(uri1, uri2, uri3)
-	split_df = split_df_list(data, 'content', '.')
-	split_df = split_df[split_df['content'].str.len() > 0]
-	split_df = split_df.drop(columns=['Unnamed: 0'])
+    data = read_from_uris(uri1, uri2, uri3)
+	#split_df = split_df_list(data, 'content', '.')
+	#split_df = split_df[split_df['content'].str.len() > 0]
+	#split_df = split_df.drop(columns=['Unnamed: 0'])
+    data = data.drop(columns=['Unnamed: 0'])
+    data['content'] = data[data['content'].str.len() > 0]
+    # Make sure all spaces in data are single spaces so keywords can be picked up 
+    data['content'] = data['content'].str.replace(' +', ' ')
+    data['label'] = 0
