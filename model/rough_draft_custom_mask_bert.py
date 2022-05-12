@@ -22,42 +22,30 @@ class BertFinetuned():
       self.optimizer = AdamW(self.model.parameters(), lr=5e-5)
 
     def tokenize_and_mask(self, dataset_text = []):
-      input_id_tensors = []
-      attention_mask_tensors = []
-      labels_tensors = []
-
-      for sentence in dataset_text:
-        encoded_dict = self.tokenizer.encode_plus(
-                          sentence,                     
-                          add_special_tokens = True, 
-                          max_length = CHUNK_SIZE,       
-                          pad_to_max_length = True,
-                          return_attention_mask = True,  
-                          return_token_type_ids = False,
-                          return_tensors = 'pt')
+        dataset = load_dataset('myradeng/cs230-news', )
+        tokenized_dataset = dataset.map(lambda example: 
+            self.tokenize_function(example[CONTENT_ROW]), batched = True)
         
-        input_ids = encoded_dict['input_ids'].tolist()[0]
-        
-        # Keep a copy of input ids before they are masked so that labels are 
-        # preserved. Every where there is not a mask should be -100 for the 
-        # cost function to work properly.
-        labels = torch.tensor([-100] * len(input_ids))
+        # Downsample if running on colab 
+        downsampled_dataset = tokenized_dataset["train"].train_test_split(
+            train_size = 1000, test_size  = 100, seed=42
+        )
 
-        for index, input_id in enumerate(input_ids):
+        tf_train_dataset = downsampled_dataset["train"].to_tf_dataset(
+          columns=["input_ids", "attention_mask", "labels"],
+          collate_fn = DataCollatorForLanguageModeling(tokenizer = self.tokenizer, mlm_probability = 0.15),
+          shuffle=True,
+          batch_size=32,
+        )
 
-          # If this input id is a gender identifier, mask it but preserve its
-          # label 
-          if (input_id in DEFAULT_GENDER_IDENTIFIERS):
-            labels[index] = input_id
-            encoded_dict['input_ids'][0][index] = self.tokenizer.mask_token_id
+        validation_dataset = downsampled_dataset["test"].to_tf_dataset(
+          columns=["input_ids", "attention_mask", "labels"],
+          collate_fn = data_collator,
+          shuffle=False,
+          batch_size=32,
+        )
 
-        input_id_tensors.append(encoded_dict['input_ids'])
-        attention_mask_tensors.append(encoded_dict['attention_mask'])
-        labels_tensors.append(labels)
-
-      # Flatten all features 
-      features = torch.cat(input_id_tensors), torch.cat(attention_mask_tensors), torch.cat(labels_tensors)
-      return features
+        return validation_dataset
       
     def forward(self, input_ids, attention_mask, labels):
       self.optimizer.zero_grad()
@@ -121,11 +109,11 @@ def main():
   bert = BertFinetuned()
   input = bert.tokenizer.mask_token + " is a lawyer";
   print(input)
-  input_ids, attention_mask, labels = bert.tokenize_and_mask(["she is very cool", "he is sometimes cool too"])
-  mask_token_index = torch.where(input_ids == bert.tokenizer.mask_token_id)[1]
-  logits = bert.model(input_ids, attention_mask=attention_mask, labels=labels).logits[0]
-  top_5_tokens = torch.topk(logits[mask_token_index, :], 5, dim=1).indices[0].tolist()
-  print(bert.tokenizer.decode(top_5_tokens))
+  dataset = bert.tokenize_and_mask()
+  # mask_token_index = torch.where(input_ids == bert.tokenizer.mask_token_id)[1]
+  # logits = bert.model(input_ids, attention_mask=attention_mask, labels=labels).logits[0]
+  # top_5_tokens = torch.topk(logits[mask_token_index, :], 5, dim=1).indices[0].tolist()
+  # print(bert.tokenizer.decode(top_5_tokens))
   # bert.evaluate()
   #print(bert.predict_mask("[MASK] is a bad lawyer"))
 
