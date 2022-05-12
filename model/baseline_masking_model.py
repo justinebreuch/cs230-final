@@ -3,7 +3,14 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 from datasets import load_dataset
-from transformers import AutoTokenizer, BertTokenizer, BertForMaskedLM, DataCollatorForLanguageModeling, TFAutoModelForMaskedLM, pipeline
+from transformers import (
+    AutoTokenizer,
+    BertTokenizer,
+    BertForMaskedLM,
+    DataCollatorForLanguageModeling,
+    TFAutoModelForMaskedLM,
+    pipeline,
+)
 
 CONTENT_ROW = "content"
 SCORE = "score"
@@ -24,13 +31,14 @@ DEFAULT_GENDER_IDENTIFIERS = [
     "male",
 ]
 
-WOMAN_KEYWORDS = ['woman', 'women', 'female', 'she', 'her', 'hers']
-MAN_KEYWORDS = ['man', 'men', 'male', 'he', 'his', 'him']
+WOMAN_KEYWORDS = ["woman", "women", "female", "she", "her", "hers"]
+MAN_KEYWORDS = ["man", "men", "male", "he", "his", "him"]
 
 TOP_K = 100
 
-class Bert():
-    def __init__(self, model_checkpoint = 'bert-base-uncased'):
+
+class Bert:
+    def __init__(self, model_checkpoint="bert-base-uncased"):
         """
         Instantiates model and tokenizer based on pretrained bert-base-uncased model.
         Returns:
@@ -51,7 +59,7 @@ class Bert():
           predictions -- dictionary of { predictions : probability }
         Example: ("[Mask] should be president!") : {'she' : 0.50, 'he': 0.5}
         """
-        model_fn = pipeline("fill-mask", model = self.model, tokenizer = self.tokenizer)
+        model_fn = pipeline("fill-mask", model=self.model, tokenizer=self.tokenizer)
         predictions = model_fn(masked_text, top_k=TOP_K)
         return predictions
 
@@ -68,21 +76,24 @@ class Bert():
         """
         if not gender_identifiers:
             gender_identifiers = DEFAULT_GENDER_IDENTIFIERS
-        regex = re.compile(r'\b(?:%s)\b' % '|'.join(gender_identifiers))
+        regex = re.compile(r"\b(?:%s)\b" % "|".join(gender_identifiers))
         return regex.sub(self.tokenizer.mask_token, input_text)
 
-    def split_to_contexts(self, eval_dataset, context_size = 50):
-        concat_text = ' '.join(eval_dataset)
+    def split_to_contexts(self, eval_dataset, context_size=100):
+        concat_text = " ".join(eval_dataset)
         words = concat_text.split()
-        grouped_words = [' '.join(words[i: i + context_size]) for i in range(0, len(words), context_size)]
+        grouped_words = [
+            " ".join(words[i : i + context_size])
+            for i in range(0, len(words), context_size)
+        ]
         print(grouped_words)
         return grouped_words
 
     def read_eval_data(self):
-        dataset = load_dataset('myradeng/cs230-news')
+        dataset = load_dataset("myradeng/cs230-news")
 
         # Downsample if running on colab
-        downsampled_dataset = dataset["test"].train_test_split(test_size  = 100, seed=42)
+        downsampled_dataset = dataset["test"].train_test_split(test_size=100, seed=42)
         eval_dataset = downsampled_dataset["test"]
         print(eval_dataset)
         repartitioned = self.split_to_contexts(eval_dataset[CONTENT_ROW])
@@ -96,7 +107,7 @@ class Bert():
         for row in eval_dataset:
             text = row
             print(text)
-            masked_input = self.mask_gender(input_text = text)
+            masked_input = self.mask_gender(input_text=text)
             print(masked_input)
             predictions = self.predict_mask(masked_input)
             print(predictions)
@@ -116,10 +127,13 @@ class Bert():
                         woman_probs.append(0)
                         man_probs.append(0)
                     else:
-                        woman_probs.append(woman_prob_numerator / all_gender_denominator)
+                        woman_probs.append(
+                            woman_prob_numerator / all_gender_denominator
+                        )
                         man_probs.append(man_prob_numerator / all_gender_denominator)
-                        assert((woman_prob_numerator / all_gender_denominator) +
-                               (man_prob_numerator / all_gender_denominator) == 1.0)
+                        assert (woman_prob_numerator / all_gender_denominator) + (
+                            man_prob_numerator / all_gender_denominator
+                        ) == 1.0
             else:
                 woman_prob_numerator = 0
                 man_prob_numerator = 0
@@ -137,8 +151,9 @@ class Bert():
                 else:
                     woman_probs.append(woman_prob_numerator / all_gender_denominator)
                     man_probs.append(man_prob_numerator / all_gender_denominator)
-                    assert((woman_prob_numerator / all_gender_denominator) +
-                           (man_prob_numerator / all_gender_denominator) == 1.0)
+                    assert (woman_prob_numerator / all_gender_denominator) + (
+                        man_prob_numerator / all_gender_denominator
+                    ) == 1.0
         print("Woman probs: " + str(woman_probs))
         print("Man probs: " + str(man_probs))
         return woman_probs, man_probs
@@ -152,11 +167,14 @@ class Bert():
         clip_length = min(len(woman_probs), len(man_probs))
         clip_length = min(len(eval_df), clip_length)
         probability_output = pd.DataFrame(
-            {'content': eval_df[0:clip_length],
-             'female_probs': woman_probs[0:clip_length],
-             'male_probs': man_probs[0:clip_length]
-             })
+            {
+                "content": eval_df[0:clip_length],
+                "female_probs": woman_probs[0:clip_length],
+                "male_probs": man_probs[0:clip_length],
+            }
+        )
         return probability_output
+
 
 def main():
     bert = Bert()
@@ -166,5 +184,6 @@ def main():
     # masked_input = bert.mask_gender(bert.tokenizer, input_text="he can work as a lawyer")
     # print(masked_input)
     # print(bert.predict_mask(masked_input))
+
 
 main()
