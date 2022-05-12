@@ -4,10 +4,34 @@ from transformers import AutoTokenizer, TFAutoModelForMaskedLM, DataCollatorForL
 from huggingface_hub import notebook_login
 from transformers.keras_callbacks import PushToHubCallback
 from datasets import load_dataset
+import pandas as pd
 
 CHUNK_SIZE = 128
-CONTENT_ROW = "content"
 DEFAULT_TRAIN_SIZE = 1000
+
+CONTENT_ROW = "content"
+SCORE = "score"
+TOKEN_STRING = "token_str"
+
+DEFAULT_GENDER_IDENTIFIERS = [
+		"she",
+		"her",
+		"hers",
+		"woman",
+		"women",
+		"female",
+		"he",
+		"his",
+		"him",
+		"man",
+		"men",
+		"male",
+]
+
+WOMAN_KEYWORDS = ['woman', 'women', 'female', 'she', 'her', 'hers']
+MAN_KEYWORDS = ['man', 'men', 'male', 'he', 'his', 'him']
+
+TOP_K = 100
 
 class BertFinetuned():
 	def __init__(self, model_checkpoint = 'bert-base-uncased'):
@@ -71,12 +95,9 @@ class BertFinetuned():
 				num_train_steps = len(train_dataset),
 				weight_decay_rate=0.01,
 		)
-		self.model
+
 		self.model.compile(optimizer = optimizer)
 		self.model.fit(train_dataset, validation_data = eval_dataset)
-
-	def evaluate(self, eval_dataset):
-		return self.model.evaluate(eval_dataset)
 
 	def group_texts(self, examples):
 		# Concatenate all texts
@@ -94,6 +115,93 @@ class BertFinetuned():
 		result["labels"] = result["input_ids"].copy()
 		return result
 
+	def split_to_contexts(self, eval_dataset, context_size = 100):
+		concat_text = ' '.join(eval_dataset)
+		words = concat_text.split()
+		grouped_words = [' '.join(words[i: i + context_size]) for i in range(0, len(words), context_size)]
+		print(grouped_words)
+		return grouped_words
+
+	def read_eval_data(self):
+		dataset = load_dataset('myradeng/cs230-news')
+
+		# Downsample if running on colab
+		downsampled_dataset = dataset["test"].train_test_split(test_size  = 100, seed=42)
+		eval_dataset = downsampled_dataset["test"]
+		print(eval_dataset)
+		repartitioned = self.split_to_contexts(eval_dataset[CONTENT_ROW])
+		print(repartitioned)
+		return repartitioned
+
+	def compute_probs(self, eval_dataset):
+		woman_probs = []
+		man_probs = []
+
+		for row in eval_dataset:
+			text = row
+			print(text)
+			masked_input = self.mask_gender(input_text = text)
+			print(masked_input)
+			predictions = self.predict_mask(masked_input)
+			print(predictions)
+			if len(predictions) != TOP_K:
+				for predictions_list in predictions:
+					woman_prob_numerator = 0
+					man_prob_numerator = 0
+					all_gender_denominator = 0
+					for prediction in predictions_list:
+						if prediction[TOKEN_STRING] in WOMAN_KEYWORDS:
+							woman_prob_numerator += prediction[SCORE]
+							all_gender_denominator += prediction[SCORE]
+						if prediction[TOKEN_STRING] in MAN_KEYWORDS:
+							man_prob_numerator += prediction[SCORE]
+							all_gender_denominator += prediction[SCORE]
+					if all_gender_denominator == 0:
+						woman_probs.append(0)
+						man_probs.append(0)
+					else:
+						woman_probs.append(woman_prob_numerator / all_gender_denominator)
+						man_probs.append(man_prob_numerator / all_gender_denominator)
+						assert((woman_prob_numerator / all_gender_denominator) +
+									 (man_prob_numerator / all_gender_denominator) == 1.0)
+			else:
+				woman_prob_numerator = 0
+				man_prob_numerator = 0
+				all_gender_denominator = 0
+				for prediction in predictions:
+					if prediction[TOKEN_STRING] in WOMAN_KEYWORDS:
+						woman_prob_numerator += prediction[SCORE]
+						all_gender_denominator += prediction[SCORE]
+					if prediction[TOKEN_STRING] in MAN_KEYWORDS:
+						man_prob_numerator += prediction[SCORE]
+						all_gender_denominator += prediction[SCORE]
+				if all_gender_denominator == 0:
+					woman_probs.append(0)
+					man_probs.append(0)
+				else:
+					woman_probs.append(woman_prob_numerator / all_gender_denominator)
+					man_probs.append(man_prob_numerator / all_gender_denominator)
+					assert((woman_prob_numerator / all_gender_denominator) +
+								 (man_prob_numerator / all_gender_denominator) == 1.0)
+		print("Woman probs: " + str(woman_probs))
+		print("Man probs: " + str(man_probs))
+		return woman_probs, man_probs
+
+	# Example model usage from a data file path, returns dataframe with probabilities
+	def evaluate(self, eval_df):
+		woman_probs, man_probs = self.compute_probs(eval_df)
+
+		# For some reason woman_probs, man_probs, and content are different
+		# different lengths.
+		clip_length = min(len(woman_probs), len(man_probs))
+		clip_length = min(len(eval_df), clip_length)
+		probability_output = pd.DataFrame(
+				{'content': eval_df[0:clip_length],
+				 'female_probs': woman_probs[0:clip_length],
+				 'male_probs': man_probs[0:clip_length]
+				 })
+		return probability_output
+
 def main():
 	# Hugging face login
 	notebook_login()
@@ -101,5 +209,5 @@ def main():
 	train_dataset, eval_dataset = bert.load_dataset(train_size = 100, test_size = 10)
 	bert.fit(train_dataset, eval_dataset)
 	loss = bert.evaluate(eval_dataset)
-
+	print(loss)
 main()
