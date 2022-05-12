@@ -1,10 +1,11 @@
 import numpy as np
 import tensorflow as tf
-from transformers import AutoTokenizer, TFAutoModelForMaskedLM, DataCollatorForLanguageModeling, BertForMaskedLM, TFPreTrainedModel, create_optimizer
+from transformers import AutoTokenizer, TFAutoModelForMaskedLM, DataCollatorForLanguageModeling, BertForMaskedLM, TFPreTrainedModel, create_optimizer, pipeline
 from huggingface_hub import notebook_login
 from transformers.keras_callbacks import PushToHubCallback
 from datasets import load_dataset
 import pandas as pd
+import re
 
 CHUNK_SIZE = 128
 DEFAULT_TRAIN_SIZE = 1000
@@ -88,7 +89,7 @@ class BertFinetuned():
 			result["word_ids"] = [result.word_ids(i) for i in range(len(result["input_ids"]))]
 		return result
 
-	def fit(self, train_dataset, eval_dataset):
+	def fit(self, train_dataset, eval_dataset, batch_size = 32):
 		optimizer, _ = create_optimizer(
 				init_lr=2e-5,
 				num_warmup_steps=1_000,
@@ -97,7 +98,7 @@ class BertFinetuned():
 		)
 
 		self.model.compile(optimizer = optimizer)
-		self.model.fit(train_dataset, validation_data = eval_dataset)
+		self.model.fit(train_dataset, validation_data = eval_dataset, batch_size = batch_size, verbose = 1)
 
 	def group_texts(self, examples):
 		# Concatenate all texts
@@ -237,8 +238,8 @@ def main():
 	# Hugging face login
 	notebook_login()
 	bert = BertFinetuned()
-	train_dataset, eval_dataset = bert.load_dataset(train_size = 100, test_size = 10)
+	train_dataset, eval_dataset = bert.load_dataset(train_size = 10, test_size = 1)
 	bert.fit(train_dataset, eval_dataset)
-	loss = bert.evaluate(eval_dataset)
+	loss = bert.evaluate(bert.read_eval_data())
 	print(loss)
 main()
