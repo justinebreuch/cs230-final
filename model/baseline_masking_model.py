@@ -34,8 +34,8 @@ class Bert():
         """
         Instantiates model and tokenizer based on pretrained bert-base-uncased model.
         Returns:
-        tokenizer -- BertTokenizer for the model
-        model -- pretrained TFBertModel
+        tokenizer -- AutoTokenizer for the model
+        model -- pretrained BertForMaskedLM
         """
         self.tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
         self.model = BertForMaskedLM.from_pretrained(model_checkpoint)
@@ -71,20 +71,30 @@ class Bert():
         regex = re.compile(r'\b(?:%s)\b' % '|'.join(gender_identifiers))
         return regex.sub(self.tokenizer.mask_token, input_text)
 
+    def split_to_contexts(self, eval_dataset, context_size = 50):
+        concat_text = ' '.join(eval_dataset)
+        words = concat_text.split()
+        grouped_words = [' '.join(words[i: i + context_size]) for i in range(0, len(words), context_size)]
+        print(grouped_words)
+        return grouped_words
+
     def read_eval_data(self):
         dataset = load_dataset('myradeng/cs230-news')
+
         # Downsample if running on colab
         downsampled_dataset = dataset["test"].train_test_split(test_size  = 100, seed=42)
-
         eval_dataset = downsampled_dataset["test"]
-        return eval_dataset
+        print(eval_dataset)
+        repartitioned = self.split_to_contexts(eval_dataset[CONTENT_ROW])
+        print(repartitioned)
+        return repartitioned
 
     def compute_probs(self, eval_dataset):
         woman_probs = []
         man_probs = []
 
         for row in eval_dataset:
-            text = row[CONTENT_ROW]
+            text = row
             print(text)
             masked_input = self.mask_gender(input_text = text)
             print(masked_input)
@@ -140,9 +150,9 @@ class Bert():
         # For some reason woman_probs, man_probs, and content are different
         # different lengths.
         clip_length = min(len(woman_probs), len(man_probs))
-        clip_length = min(len(eval_df['content']), clip_length)
+        clip_length = min(len(eval_df), clip_length)
         probability_output = pd.DataFrame(
-            {'content': eval_df['content'][0:clip_length],
+            {'content': eval_df[0:clip_length],
              'female_probs': woman_probs[0:clip_length],
              'male_probs': man_probs[0:clip_length]
              })
