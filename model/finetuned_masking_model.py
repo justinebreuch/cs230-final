@@ -115,6 +115,37 @@ class BertFinetuned():
 		result["labels"] = result["input_ids"].copy()
 		return result
 
+	def predict_mask(self, masked_text):
+		"""
+    Provide predictions and scores for masked tokens.
+    Arguments:
+      model -- model to use for prediction
+      tokenizer -- tokenizer to identify the token_str
+      masked_text -- input text to run predictions on
+    Returns:
+      predictions -- dictionary of { predictions : probability }
+    Example: ("[Mask] should be president!") : {'she' : 0.50, 'he': 0.5}
+    """
+		model_fn = pipeline("fill-mask", model = self.model, tokenizer = self.tokenizer)
+		predictions = model_fn(masked_text, top_k=TOP_K)
+		return predictions
+
+	def mask_gender(self, gender_identifiers=[], input_text=""):
+		"""
+    Masks the input text with the mask_token for the given tokenizer
+    Arguments:
+      tokenizer -- tokenizer to identify the token_str
+      gender_identifiers (optional) -- list of identifiers to mask (i.e. ["Megan", "boy", "guy"])
+      input_text -- the string to mask
+    Returns:
+      output_text -- masked version of the input_text
+    Example: ("[Mask] should be president!") : {'she' : 0.50, 'he': 0.5}
+    """
+		if not gender_identifiers:
+			gender_identifiers = DEFAULT_GENDER_IDENTIFIERS
+		regex = re.compile(r'\b(?:%s)\b' % '|'.join(gender_identifiers))
+		return regex.sub(self.tokenizer.mask_token, input_text)
+
 	def split_to_contexts(self, eval_dataset, context_size = 100):
 		concat_text = ' '.join(eval_dataset)
 		words = concat_text.split()
