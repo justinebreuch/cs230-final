@@ -19,6 +19,10 @@ def parse_args():
 	parser = argparse.ArgumentParser(description='Process input files into train, dev, test')
 	parser.add_argument('-i', dest='input_uri', type=str)
 	parser.add_argument('-o', dest='output_dir', type=str)
+	# Whether to filter for only sentences with a gender pronoun present 
+	parser.add_argument('--filter_gender', default=False, action=argparse.BooleanOptionalAction)
+	# This is a hyperparameter used to tune how many rows to drop in order to achieve roughly ~50/50 pronoun balance
+	parser.add_argument('-r', dest='ratio_param', type=str, default=1.35)
 	return parser
 
 def filter_gender_entries(data):
@@ -26,7 +30,8 @@ def filter_gender_entries(data):
 	gender_keyword_filtered_df = gender_keyword_filtered_df[gender_keyword_filtered_df[CONTENT_COLUMN_NAME + "_list"].apply(lambda x: any([k in x for k in man_keywords]))]
 	return gender_keyword_filtered_df
 
-def proportion_gender_entries(data, male_pronoun_count, female_pronoun_count, ratio=1.35):
+# TODO: Make this more systematic rather than an approximation
+def proportion_gender_entries(data, male_pronoun_count, female_pronoun_count, ratio):
 	women = data[data['content_list'].apply(lambda x: any([k in x for k in woman_keywords]))]
 	men = data[data['content_list'].apply(lambda x: any([k in x for k in man_keywords]))]
 	men_with_women = men[men['content_list'].apply(lambda x: any([k in x for k in woman_keywords]))]
@@ -54,6 +59,8 @@ def main():
 	args = parser.parse_args()
 	uri = args.input_uri
 	output_dir = args.output_dir
+	filter_gender = args.filter_gender
+	ratio = float(args.ratio_param)
 
 	data = read_from_uris(uri)
 
@@ -70,13 +77,18 @@ def main():
 
 	data[CONTENT_COLUMN_NAME + "_list"] = data[CONTENT_COLUMN_NAME].str.split()
 
+	# (Configurable) Filter for single instance pronoun entries
+	if filter_gender:
+		data['pronoun_count'] = data.apply(lambda row: sum([item in row['content_list'] for item in woman_keywords + man_keywords]), axis=1)
+		data = data[data['pronoun_count'] == 1]
+
 	# Count initial gender proportions
 	female_pronoun_count, male_pronoun_count = count_gender_entries(data)
 	print('Male pronoun count: ' + str(male_pronoun_count))
 	print('Female pronoun count: ' + str(female_pronoun_count))
 
 	# Ensure approx equal split between male / female gender pronouns in training data
-	data = proportion_gender_entries(data, male_pronoun_count, female_pronoun_count)
+	data = proportion_gender_entries(data, male_pronoun_count, female_pronoun_count, ratio)
 	female_pronoun_count, male_pronoun_count = count_gender_entries(data)
 	print('Male pronoun count after rebalancing: ' + str(male_pronoun_count))
 	print('Female pronoun count after rebalancing: ' + str(female_pronoun_count))
