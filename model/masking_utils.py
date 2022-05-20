@@ -131,8 +131,8 @@ def compute_probs(predictions):
     return woman_prob, man_prob
 
 
-def evaluate(eval_df):
-    model_fn = pipeline("fill-mask", model="roberta-base")
+def evaluate(model,tokenizer, eval_df):
+    model_fn = pipeline("fill-mask", model=model, tokenizer=tokenizer))
     predictions = []
     woman_probs = []
     man_probs = []
