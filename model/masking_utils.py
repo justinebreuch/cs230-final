@@ -1,3 +1,21 @@
+import news_utils
+import re
+import numpy as np
+import pandas as pd
+from datasets import load_dataset, Dataset
+from re import search
+from tqdm.auto import tqdm
+import torch
+from transformers.pipelines.pt_utils import KeyDataset
+from transformers import (
+  AutoTokenizer,
+  DataCollatorForLanguageModeling,
+  RobertaTokenizer,
+  RobertaTokenizerFast,
+  RobertaForMaskedLM,
+  pipeline,
+)
+
 def mask_single_gender(tokenizer, gender_identifiers=[], input_text=""):
     """
     Masks the input text with the mask_token for the given tokenizer.
@@ -11,7 +29,7 @@ def mask_single_gender(tokenizer, gender_identifiers=[], input_text=""):
     Example: ("[Mask] should be president!") : {'she' : 0.50, 'he': 0.5}
     """
     if not gender_identifiers:
-        gender_identifiers = DEFAULT_GENDER_IDENTIFIERS
+        gender_identifiers = news_utils.DEFAULT_GENDER_IDENTIFIERS
     regex = re.compile(r"\b(?:%s)\b" % "|".join(gender_identifiers))
     matches = list(re.finditer(regex, input_text))
 
@@ -58,7 +76,7 @@ def mask_gender(tokenizer, gender_identifiers=[], input_text=""):
     Example: ("[Mask] should be president!") : {'she' : 0.50, 'he': 0.5}
     """
     if not gender_identifiers:
-        gender_identifiers = DEFAULT_GENDER_IDENTIFIERS
+        gender_identifiers = news_utils.DEFAULT_GENDER_IDENTIFIERS
     regex = re.compile(r"\b(?:%s)\b" % "|".join(gender_identifiers))
     return regex.sub(tokenizer.mask_token, input_text)
 
@@ -76,10 +94,11 @@ def split_to_contexts(eval_dataset, context_size=100):
 def read_eval_data(dataset, downsample=False):
     eval_dataset = dataset["test"]
     # Downsample if running on colab
+    print(news_utils.CONTENT_ROW)
     if downsample:
         downsampled_dataset = dataset["test"].train_test_split(test_size=100, seed=42)
         eval_dataset = downsampled_dataset["test"]
-    repartitioned = split_to_contexts(eval_dataset[CONTENT_ROW])
+    repartitioned = split_to_contexts(eval_dataset[news_utils.CONTENT_ROW])
     eval_dataset_df = pd.DataFrame({"content": repartitioned})
     return eval_dataset_df
 
@@ -89,13 +108,13 @@ def compute_single_prob(predictions):
     man_prob_numerator = 0
     all_gender_denominator = 0
     for prediction in predictions:
-        token_string = prediction[TOKEN_STRING].strip()
-        if token_string in WOMAN_KEYWORDS:
-            woman_prob_numerator += prediction[SCORE]
-            all_gender_denominator += prediction[SCORE]
-        if token_string in MAN_KEYWORDS:
-            man_prob_numerator += prediction[SCORE]
-            all_gender_denominator += prediction[SCORE]
+        token_string = prediction[news_utils.TOKEN_STRING].strip()
+        if token_string in news_utils.WOMAN_KEYWORDS:
+            woman_prob_numerator += prediction[news_utils.SCORE]
+            all_gender_denominator += prediction[news_utils.SCORE]
+        if token_string in news_utils.MAN_KEYWORDS:
+            man_prob_numerator += prediction[news_utils.SCORE]
+            all_gender_denominator += prediction[news_utils.SCORE]
     if all_gender_denominator == 0:
         woman_prob = 0
         man_prob = 0
@@ -117,7 +136,7 @@ def compute_probs(predictions):
     """
     woman_prob = 0
     man_prob = 0
-    if len(predictions) != TOP_K:
+    if len(predictions) != news_utils.TOP_K:
         woman_prob_list = []
         man_prob_list = []
         for prediction in predictions:
@@ -131,13 +150,13 @@ def compute_probs(predictions):
     return woman_prob, man_prob
 
 
-def evaluate(model,tokenizer, eval_df):
-    model_fn = pipeline("fill-mask", model=model, tokenizer=tokenizer))
+def evaluate(model, tokenizer, eval_df):
+    model_fn = pipeline("fill-mask", model=model, tokenizer=tokenizer)
     predictions = []
     woman_probs = []
     man_probs = []
 
-    for prediction in tqdm(model_fn(KeyDataset(eval_df, "content"), top_k=TOP_K)):
+    for prediction in tqdm(model_fn(KeyDataset(eval_df, "content"), top_k=news_utils.TOP_K)):
         (woman_prob, man_prob) = compute_probs(prediction)
         woman_probs.append(woman_prob)
         man_probs.append(man_prob)
