@@ -63,6 +63,7 @@ class Bert:
           output_text -- masked version of the input_text
         Example: ("[Mask] should be president!") : {'she' : 0.50, 'he': 0.5}
         """
+        input_text = input_text.lower()
         if not gender_identifiers:
             gender_identifiers = DEFAULT_GENDER_IDENTIFIERS
         regex = re.compile(r"\b(?:%s)\b" % "|".join(gender_identifiers))
@@ -208,6 +209,7 @@ def main():
         output = mask_single_gender(input_text=row["content"])
         dataset.loc[idx, "content"] = output[0]
         dataset.loc[idx, "label"] = output[1]
+    dataset = dataset[dataset["content"].str.contains("\[MASK\]")]
     dataset = Dataset.from_pandas(dataset)
     probability_output_df = bert.evaluate(dataset)
 

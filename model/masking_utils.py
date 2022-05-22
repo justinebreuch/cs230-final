@@ -28,6 +28,7 @@ def mask_single_gender(tokenizer, gender_identifiers=[], input_text=""):
       output_text -- masked version of the input_text
     Example: ("[Mask] should be president!") : {'she' : 0.50, 'he': 0.5}
     """
+    input_text = input_text.lower()
     if not gender_identifiers:
         gender_identifiers = news_utils.DEFAULT_GENDER_IDENTIFIERS
     regex = re.compile(r"\b(?:%s)\b" % "|".join(gender_identifiers))
