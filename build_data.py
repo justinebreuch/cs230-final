@@ -92,6 +92,7 @@ def main():
     uri = args.input_uri
     output_dir = args.output_dir
     filter_gender = args.filter_gender
+    proportion_gender = args.proportion_gender
     ratio = float(args.ratio_param)
 
     data = read_from_uris(uri)
