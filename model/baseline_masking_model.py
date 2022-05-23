@@ -63,11 +63,10 @@ class Bert:
           output_text -- masked version of the input_text
         Example: ("[Mask] should be president!") : {'she' : 0.50, 'he': 0.5}
         """
-        input_text = input_text.lower()
         if not gender_identifiers:
             gender_identifiers = DEFAULT_GENDER_IDENTIFIERS
         regex = re.compile(r"\b(?:%s)\b" % "|".join(gender_identifiers))
-        matches = list(re.finditer(regex, input_text))
+        matches = list(re.finditer(regex, input_text.lower()))
 
         middle_index = len(input_text) / 2
         single_match_start = 0
@@ -134,7 +133,7 @@ class Bert:
         eval_dataset_df = pd.DataFrame({"content": repartitioned})
         return eval_dataset_df
 
-    def compute_single_prob(predictions):
+    def compute_single_prob(self, predictions):
         woman_prob_numerator = 0
         man_prob_numerator = 0
         all_gender_denominator = 0
@@ -169,13 +168,13 @@ class Bert:
             woman_prob_list = []
             man_prob_list = []
             for prediction in predictions:
-                woman_prob, man_prob = compute_single_prob(prediction)
+                woman_prob, man_prob = self.compute_single_prob(prediction)
                 woman_prob_list.append(woman_prob)
                 man_prob_list.append(man_prob)
             woman_prob = np.mean(woman_prob_list)
             man_prob = np.mean(man_prob_list)
         else:
-            woman_prob, man_prob = compute_single_prob(predictions)
+            woman_prob, man_prob = self.compute_single_prob(predictions)
         return woman_prob, man_prob
 
     def evaluate(self, eval_df):
