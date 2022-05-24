@@ -128,7 +128,7 @@ class Bert:
             downsampled_dataset = dataset["validation"].train_test_split(
                 test_size=100, seed=42
             )
-            eval_dataset = downsampled_dataset["validation"]
+            eval_dataset = downsampled_dataset["test"]
         repartitioned = self.split_to_contexts(eval_dataset[CONTENT_ROW])
         eval_dataset_df = pd.DataFrame({"content": repartitioned})
         return eval_dataset_df
