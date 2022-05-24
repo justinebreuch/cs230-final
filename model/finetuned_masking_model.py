@@ -236,13 +236,13 @@ class BertFinetuned:
         return grouped_words
 
     def read_eval_data(self, dataset, downsample=False):
-        eval_dataset = dataset["test"]
+        eval_dataset = dataset["validation"]
         # Downsample if running on colab
         if downsample:
-            downsampled_dataset = dataset["test"].train_test_split(
+            downsampled_dataset = dataset["validation"].train_test_split(
                 test_size=100, seed=42
             )
-            eval_dataset = downsampled_dataset["test"]
+            eval_dataset = downsampled_dataset["validation"]
         repartitioned = self.split_to_contexts(eval_dataset[CONTENT_ROW])
         eval_dataset_df = pd.DataFrame({"content": repartitioned})
         return eval_dataset_df
