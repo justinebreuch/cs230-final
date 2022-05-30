@@ -313,24 +313,24 @@ class BertFinetuned:
         return probability_output
 
     def get_context_indices(self, context, gender_keywords, target_keywords):
-        masked_context = self.mask_single_gender(gender_keywords, context)
-        if "[MASK]" not in masked_context[0]:
+        # masked_context = self.mask_single_gender(gender_keywords, context)
+        masked_context = context.split()
+        # if "[MASK]" not in masked_context[0]:
+        if "[MASK]" not in masked_context:
             return None
 
         gender_indices = []
         target_indices = []
 
-        masked_context = masked_context[0].split()
+        # masked_context = masked_context[0].split()
         for i in range(0, len(masked_context)):
             if masked_context[i].lower().strip() in target_keywords:
                 target_indices.append(i)
             if masked_context[i] == "[MASK]":
                 gender_indices.append(i)
-        print("Gender indices: ", gender_indices)
-        print("Target indices: ", target_indices)
         return gender_indices, target_indices
 
-    def get_cosine_similarities(self, context, gender_keywords, target_keywords):
+    def get_cosine_similarities(self, context, label, gender_keywords, target_keywords):
         """
         Computes cosine similarities between gender_keyword and target_keywords
         Arguments:
@@ -347,13 +347,15 @@ class BertFinetuned:
         gender_index = sent_idxs[0][0]
         target_indices = sent_idxs[1]
 
-        cosine_sims = []
+        cosine_sims = dict()
+        context_list = context.split()
         for target_index in target_indices:
             tok_ids = [
                 np.where(np.array(tok.word_ids()) == idx)
                 for idx in [gender_index, target_index]
             ]
-            print("Tok ids: ", str(tok_ids))
+            target_word = context_list[target_index]
+            gender_word = label
 
             with torch.no_grad():
                 out = self.model(**tok)
@@ -366,11 +368,18 @@ class BertFinetuned:
             target_embedding = embs[1].reshape(1, -1)
 
             cosine_sim = torch.cosine_similarity(pronoun_embedding, target_embedding)
-            cosine_sims.append(cosine_sim.item())
-
+            if (gender_word, target_word) not in cosine_sims:
+                cosine_sims[(gender_word.lower(), target_word.lower())] = []
+                cosine_sims[(gender_word.lower(), target_word.lower())].append(
+                    cosine_sim.item()
+                )
+            else:
+                cosine_sims[(gender_word.lower(), target_word.lower())].append(
+                    cosine_sim.item()
+                )
         if len(cosine_sims) == 0:
             return None
-        return np.mean(cosine_sims)
+        return cosine_sims
 
 
 def main():
