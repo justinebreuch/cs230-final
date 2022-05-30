@@ -1,4 +1,4 @@
-# cs230-final
+# Studying Gender Bias in News Using BERT Masked Language Models (CS230, Spring 2022)
 
 **Models**: Main model code is in *model/*, including baseline and finetuned BERT models. Each model class supports initializing the model, masking, tokenization, and functions required for cosine embedding analysis and masked language model prediction.
 
